@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>企业智能工单助手</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f7fb;color:#182230;margin:0}
+    main{max-width:1100px;margin:0 auto;padding:36px 20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .card{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:22px;box-shadow:0 4px 16px #1720330a}
+    textarea{width:100%;min-height:120px;padding:12px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;resize:vertical}
+    button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;margin-top:12px}
+    button.secondary{background:#64748b}.result{white-space:pre-wrap;line-height:1.7}.ticket{border-top:1px solid #eee;padding:12px 0}.muted{color:#64748b;font-size:13px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <h1>企业智能工单与知识库助手</h1>
+  <p class="muted">默认使用 Mock AI，可配置 Dify Workflow 后切换真实工作流。</p>
+  <div class="grid">
+    <section class="card">
+      <h2>提交问题</h2>
+      <textarea id="message" placeholder="例如：为什么我的账号无法登录？"></textarea>
+      <button onclick="ask()">提交并分析</button>
+      <div id="answer" class="result" style="margin-top:18px"></div>
+    </section>
+    <section class="card">
+      <h2>待处理工单</h2>
+      <div id="stats" class="muted">加载统计中...</div>
+      <button class="secondary" onclick="loadTickets()">刷新工单</button>
+      <div id="tickets" style="margin-top:12px"></div>
+    </section>
+  </div>
+</main>
+<script>
+async function ask(){
+  const message=document.querySelector('#message').value.trim();
+  if(!message){return alert('请输入问题');}
+  const box=document.querySelector('#answer'); box.textContent='处理中...';
+  const res=await fetch('/api/v1/questions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:'demo_user',message})});
+  const data=await res.json();
+  if(!res.ok){box.textContent=data.detail||'请求失败';return;}
+  box.textContent=`${data.answer}\n\n意图：${data.intent}\n置信度：${data.confidence}\n需要人工：${data.need_human?'是':'否'}\n工单：${data.ticket_id||'无'}\n来源：${data.sources.map(x=>x.title).join('、')}`;
+  loadTickets();
+}
+async function loadTickets(){
+  const res=await fetch('/api/v1/tickets'); const data=await res.json();
+  document.querySelector('#tickets').innerHTML=data.length?data.map(t=>`<div class="ticket"><b>${t.intent}</b> · ${t.priority}<br>${t.user_message}<br><span class="muted">状态：${t.status} · ${t.id}</span><br><button class="secondary" onclick="updateTicket('${t.id}','in_progress')">处理中</button> <button onclick="updateTicket('${t.id}','resolved')">已解决</button></div>`).join(''):'<p class="muted">暂无工单</p>';
+}
+async function updateTicket(id,status){
+  await fetch('/api/v1/tickets/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  loadTickets();
+}
+async function loadStats(){
+  const res=await fetch('/api/v1/stats'); const data=await res.json();
+  document.querySelector('#stats').textContent=`工单总数：${data.total_tickets} · 待处理：${data.open_tickets} · 人工转接率：${(data.human_handoff_rate*100).toFixed(1)}% · 平均响应：${data.average_response_seconds}s`;
+}
+loadTickets();
+loadStats();
+</script>
+</body>
+</html>

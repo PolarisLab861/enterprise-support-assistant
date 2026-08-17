@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: support_assistant
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://app:app@postgres:5432/support_assistant
+      MOCK_AI: "true"
+      DIFY_BASE_URL: ${DIFY_BASE_URL:-http://host.docker.internal/v1}
+      DIFY_API_KEY: ${DIFY_API_KEY:-}
+      DIFY_WORKFLOW_ID: ${DIFY_WORKFLOW_ID:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
